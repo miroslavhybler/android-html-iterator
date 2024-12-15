@@ -19,17 +19,20 @@ namespace stringUtils {
 
 
     /**
+     *
      * @since 1.0.0
      */
     std::function<bool(unsigned char)> trimPred = [](unsigned char ch) -> bool {
         return !std::isspace(ch);
     };
 
+
     /**
     *
-    * @param ch
-    * @return
-     */
+    * @param ch Character to be checked
+    * @return True if character is white character, false otherwise.
+    * @since 1.0.0
+    */
     bool isWhiteChar(char &ch) {
         //TODO check std::isSpace()
         return ch == ' ' || ch == '\n' || ch == '\t';
@@ -38,12 +41,14 @@ namespace stringUtils {
 
     /**
      *
-     * @param ch
-     * @return
+     * @param ch Character to be checked
+     * @return True when character is not white character, false otherwise.
+     * @since 1.0.0
      */
     bool isNotWhiteChar(char &ch) {
         return !isWhiteChar(ch);
     }
+
 
     /**
      * Checks if strings s1 and s2 are same, or in other words, content of strings is same.
@@ -78,7 +83,7 @@ namespace stringUtils {
 
 
     /**
-    * Tries to find index of substring within input
+    * Tries to find index of substring within input from start index.
     * @param input Input for searching substring
     * @param sub Substring you want to search
     * @param i Start index
@@ -108,7 +113,7 @@ namespace stringUtils {
 
 
     /**
-     * Implementation
+     * Implementation of std::find, tries to fing character ch in input from index i.
      * @param input
      * @param ch
      * @param i
@@ -179,6 +184,14 @@ namespace stringUtils {
         return index;
     }
 
+
+    /**
+     * Tries to find index of character ch within input from index i.
+     * @param input Input for searching character
+     * @param ch character you want to search
+     * @param i Start index
+     * @return
+     */
     size_t indexOfOrThrow(
             const std::string_view &input,
             const char ch,
@@ -232,7 +245,7 @@ namespace stringUtils {
 
 
     /**
-     * Splits input string @input by @separator and writes it into @outList
+     * Splits input string input by separator and writes it into outList
      * @param input Input string to be split
      * @param separator Separator character for split
      * @param outList Output list where result will be written.
@@ -274,6 +287,13 @@ namespace stringUtils {
     }
 
 
+    /**
+     * Splits input string input by separator and writes it into outList
+     * @param input Input to be split
+     * @param separator Separator character for split
+     * @param outList Output list where result will be written.
+     * @since 1.0.0
+     */
     void split(
             std::string &input,
             const char &separator,
@@ -328,10 +348,11 @@ namespace stringUtils {
 
     /**
      *
-     * @param input
-     * @param start
-     * @param end
-     * @return
+     * @param input Input where to search for next white charected.
+     * @param start Start index to search from, inclusive.
+     * @param end End index to search to, exclusive.
+     * @return Index of first white character from start index to end index or std::string::npos if not found.
+     * @since 1.0.0
      */
     size_t nextWhiteChar(
             std::string_view input,
@@ -346,16 +367,17 @@ namespace stringUtils {
             }
         }
 
-        return -1;
+        return std::string::npos;
     }
 
 
     /**
      *
-     * @param input
-     * @param start
-     * @param end
-     * @return
+     * @param input Input where to search for next non white charected.
+     * @param start Start index to search from, inclusive.
+     * @param end End Index to search to, exclusive.
+     * @return Index of first non white character from start index to end index or std::string::npos if not found.
+     * @since 1.0.0
      */
     size_t nextNonWhiteChar(
             std::string_view input,

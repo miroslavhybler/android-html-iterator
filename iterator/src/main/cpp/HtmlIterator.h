@@ -14,6 +14,8 @@
 
 /**
  * <h3>Usual Flow during processing</h3>
+ * After setting both content and callback, program goes like this until it reaches end of the
+ * content: <br>
  * 1. iterate()<br>
  * 2. iterateSingleIteration()<br>
  * 3. moveIndexToNextTag()<br>
@@ -42,7 +44,7 @@ private:
 
 
     /**
-     * Holding kotlinTagInfoStack of html **pair** tags as they are iterated. Tags are pushed when iterator detects
+     * Holding kotlinTagInfoStack of html <b>pair</b> tags as they are iterated. Tags are pushed when iterator detects
      * and enters pair tag and are popped out when iterator moves next behind the closing tag.
      * @since 1.0.0
      */
@@ -51,14 +53,14 @@ private:
 
     /**
      * Callback used to deliver steps of iterations. Must be set by @setCallback, otherwise iterator
-     * will not continue because there is no where to deliver result.
+     * will not continue because there is no where to deliver result, so whole process would be useless.
      * @since 1.0.0
      */
     HtmlIteratorCallback *callback = nullptr;
 
 
     /**
-     * Index
+     * Current index pointing to content.
      * @since 1.0.0
      */
     size_t currentIndex = 0;
@@ -71,7 +73,8 @@ private:
 
 
     /**
-     * True when iterator is somewhere inside <pre> tag which
+     * True when iterator is somewhere inside <pre> tag which is changing handling of white chars
+     * in content. Inside <pre> tag all white chars are included in output.
      * @since 1.0.0
      */
     bool isPreContext = false;
@@ -86,7 +89,8 @@ private:
 
 
     /**
-     * True when @content is full html document content wrapped in <html> tag.
+     * True when @content is full html document content wrapped in <html> tag. False when content is
+     * just clip of content, e.g. short styled html text.
      * @since 1.0.0
      */
     bool isFullHtmlDocument = false;
@@ -117,6 +121,7 @@ public:
 
     /**
      * Sets a new content for iterator, should be called together with @setCallback before @iterate.
+     * Also all variables are reseted to initial state and all previous results are lost.
      * @param newContent
      * @since 1.0.0
      */
@@ -129,7 +134,8 @@ public:
 
 
     /**
-     * Sets new callback, should be called together with @setContent before @iterate.
+     * Sets new callback, should be called together with @setContent before @iterate. Iterator
+     * will not continue without callback.
      * @param newCallback
      * @since 1.0.0
      */
@@ -139,7 +145,7 @@ public:
 
 
     /**
-     * Clear the resources used to release memory.
+     * Clear the resources used to release memory and resets all the variables into initial state.
      * @since 1.0.0
      */
     void clear() {
@@ -162,7 +168,7 @@ public:
 
 
     /**
-     * Starts iteration through html content which was set by @setContent before. Results are delivered
+     * Starts iteration through whole content which was set by @setContent before. Results are delivered
      * via @callback which was set by @setCallback before.
      * @since 1.0.0
      */
@@ -203,7 +209,8 @@ private:
 
 
     /**
-     *
+     * Tries to move currentIndex into next html tag. Technically it moves to the next '<' character
+     * and checks if its tag or not. Also queries all text content depend on context.
      * @return True when sequence starting at @i is tag to be processed, false otherwise
      * @since 1.0.0
      */
@@ -226,8 +233,9 @@ private:
 
 
     /**
-     * Called from moveIndexToNextTag when currentIndex is pointing to < char and sequence after it is valid
-     * html tag (validated by canProcessIncomingSequence). Extracts current tag info into currentTagInfo.
+     * Called from moveIndexToNextTag when currentIndex is pointing to '<' char and sequence after it is valid
+     * html tag (validated by canProcessIncomingSequence). Extracts current tag info into currentTagInfo and
+     * call callback method to deliver result.
      * @since 1.0.0
      */
     //TODO create new function for processing tag and delivering result
@@ -236,14 +244,11 @@ private:
         try {
             tagEndIndex = stringUtils::indexOfOrThrow(content, ">", currentIndex);
         } catch (std::runtime_error &e) {
-            //TODO    abortWithError(e, "");
-
             platformUtils::log(
                     "Unable to find char '>' in content from index: "
                     + std::to_string(currentIndex) + ", content is not containing another tag",
                     ANDROID_LOG_ERROR
             );
-
             clear();
             return;
         }
@@ -258,13 +263,19 @@ private:
         bool isClosing = currentTagBody[0] == '/';
 
         if (!isHeadIterated) {
+            //Skipping head tag
             if (stringUtils::fastCompare(tag, "head")) {
                 isHeadIterated = true;
                 //index of < of closing tag
                 size_t closingTagStartIndex;
                 try {
-                    closingTagStartIndex = findClosingTag(content, tag, tagEndIndex + 1,
-                                                          contentLength, contentLength);
+                    closingTagStartIndex = findClosingTag(
+                            content,
+                            tag,
+                            tagEndIndex + 1,
+                            contentLength,
+                            contentLength
+                    );
                 } catch (std::runtime_error &e) {
                     //Html content can have syntax errors like unclosed pair tags or others,
                     //so library should keep going, browsers are also ignoring these errors
@@ -279,31 +290,8 @@ private:
             }
         }
 
-        if (stringUtils::fastCompare(tag, "script")
-            || stringUtils::fastCompare(tag, "noscript")
-                ) {
-            //closing tag start index
-            size_t closingTagStartIndex;
-            try {
-                closingTagStartIndex = findClosingTag(content, tag, tagEndIndex + 1, contentLength,
-                                                      contentLength);
-            } catch (std::runtime_error &e) {
-                //Html content can have syntax errors like unclosed pair tags or others,
-                //so library should keep going, browsers are also ignoring these errors
-                //Just keep parsing, just keep parsing
-                currentIndex = tagEndIndex + 1;
-                platformUtils::log("HtmlIterator", "Error: " + std::string(e.what()));
-                return;
-            }
-            currentIndex = closingTagStartIndex + tag.length() + 1 + 1;
-            return;
-        } else if (stringUtils::fastCompare(tag, "svg")) {
-            currentIndex = tagEndIndex + 1;
-            return;
-        }
-
+        //Extracts tag info from current tag body
         TagInfo info = TagInfo(tag, currentTagBody);
-
 
         if (callback != nullptr) {
             if (!currentSharedContent.empty()) {
@@ -385,8 +373,18 @@ private:
 
 
     /**
-     *
-     * @param ch
+     * Tries to append ch into sharedContent string if it's possible. Html content is full of white
+     * characters that needs to be processed correctly before being appended into visible content.
+     * <li>
+     * <ul>
+     * <b>Outside &lt;pre&gt; tag</b> - There can't be two white characters next to each other, so
+     * when char is white, it's compared to last appended char if it can be connected.
+     * </ul>
+     * <ul>
+     * <b>Inside &lt;pre&gt; tag:</b> - All white chars is appended to sharedContent to be visible.
+     * </ul>
+     * @param ch Char to be appended into sharedContent
+     * @since 1.0.0
      */
     void tryAppendCharToContent(char ch) {
         if (isPreContext) {
@@ -412,7 +410,6 @@ private:
                 currentSharedContent += ch;
             }
         }
-
     }
 
 
@@ -575,10 +572,10 @@ private:
             i = tei + 1;
         }
 
-        throw std::runtime_error("Unable to find closing tag for: " + std::string(searchedTag));
+        throw std::runtime_error(
+                "Unable to find closing tag for: " + std::string(searchedTag)
+        );
     }
-
-
 };
 
 

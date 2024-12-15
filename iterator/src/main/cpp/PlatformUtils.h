@@ -22,7 +22,8 @@ inline constexpr bool isLoggingEnabled = false;
 
 
 /**
- *
+ * Holds code specific to Android platform.
+ * @since 1.0.0
  */
 namespace platformUtils {
 

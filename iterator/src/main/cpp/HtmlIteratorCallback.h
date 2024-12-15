@@ -7,13 +7,15 @@
 #ifndef ANDROID_HTML_ITERATOR_HTMLITERATORCALLBACK_H
 #define ANDROID_HTML_ITERATOR_HTMLITERATORCALLBACK_H
 
+
 /**
+ * Callback interface for HtmlIterator to deliver results. Can be implemented directly in c++ or
+ * in java using JniHtmlIteratorCallback to deliver results into kotlin HtmlIterator#Callback.
  * @since 1.0.0
  */
 class HtmlIteratorCallback {
 
 public:
-
 
     /**
      * Called from HtmlIterator when plain text is found.
@@ -24,7 +26,7 @@ public:
 
 
     /**
-     *
+     * Called from HtmlIterator when single tag is found.
      * @param tag
      * @since 1.0.0
      */
@@ -34,7 +36,8 @@ public:
     /**
      * Called from HtmlIterator when pair tag is found.
      * @param tag
-     * @return True when iterator should iterate through content of pair tag, false otherwise.
+     * @return True when iterator should iterate through content of pair tag, false otherwise, allowing
+     * to add some custom filtering logic.
      * @since 1.0.0
      */
     virtual bool onPairTag(
@@ -47,7 +50,7 @@ public:
 
 
     /**
-     * Called from HtmlIterator when leaving pair tag and tag is popped out from kotlinTagInfoStack.
+     * Called from HtmlIterator when leaving pair tag.
      */
     virtual void onLeavingPairTag(TagInfo &tag) = 0;
 

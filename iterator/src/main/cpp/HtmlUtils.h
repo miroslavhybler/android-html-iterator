@@ -15,7 +15,7 @@ namespace htmlUtils {
 
 
     /**
-     * List of standard single tags
+     * List of standard single tags.
      * @since 1.0.0
      */
     std::vector<std::string> singleTags = {
@@ -40,7 +40,7 @@ namespace htmlUtils {
     /**
      * Extracts all attributes from tagBody and writes it into outMap. When tag attribute has no value,
      * attribute value is set to empty string.
-     * @param tagBody Body of tag inside brackets '<' body '>'
+     * @param tagBody Body of tag inside brackets without brackets '<' body '>'.
      * @param outMap Mutable map for holding extracted attributes.
      * @since 1.0.0
      */
@@ -55,7 +55,7 @@ namespace htmlUtils {
 
         i = stringUtils::nextWhiteChar(tagBody, i, length);
 
-        if (i == -1) {
+        if (i == std::string::npos) {
             //There are not any attributes in tag
             return;
         }
@@ -148,6 +148,7 @@ namespace htmlUtils {
                         attributeValueEndIndex - attributeValueStartIndex - 1
                 );
 
+                //TODO minimaze usage of trim
                 stringUtils::trim(attributeName);
                 stringUtils::trim(attributeValue);
                 outMap[attributeName] = attributeValue;
@@ -169,7 +170,7 @@ namespace htmlUtils {
 
         i = stringUtils::nextWhiteChar(content, i, e);
 
-        if (i == -1) {
+        if (i == std::string::npos) {
             //There are not any attributes in tag
             return;
         }
@@ -287,7 +288,7 @@ namespace htmlUtils {
 
         i = stringUtils::nextWhiteChar(tagBody, i, length);
 
-        if (i == -1) {
+        if (i == std::string::npos) {
             //There are not any attributes in tag
             return "";
         }
@@ -393,8 +394,9 @@ namespace htmlUtils {
 
 
     /**
-     *
-     * @param tagBody
+     * Extracts name of tag from tagBody. This doesnt means name attribute but tag itself,
+     * e.g. <code>&lt;p&gt; -> p</code>
+     * @param tagBody Tag body without '<' and '>' chars to extract name from.
      * @return Name of the tag, value of "name" parameter.
      * @since 1.0.0
      */
@@ -407,6 +409,7 @@ namespace htmlUtils {
                 name = tagBody.substr(0, ei);
             }
         }
+        // TODO improve
         stringUtils::trim(name);
         return name;
     }
@@ -417,6 +420,7 @@ namespace htmlUtils {
      * @param input Value of "class" attribute without wrapper chars (start/end "/' has to be removed
      * before).
     * @param outList Mutable list for holding extracted classes.
+     * @since 1.0.0
     */
     void extractClassesFromString(
             const std::string_view &input,
@@ -458,9 +462,9 @@ namespace htmlUtils {
 
 
     /**
-     *
-     * @param tagBody
-     * @param outList
+     * Extracts values of class attribute from tagBody and writes them into outList.
+     * @param tagBody Tag body without '<' and '>' chars to extract classes from.
+     * @param outList Output list for holding extracted classes.
      * @since 1.0.0
      */
     void extractClasses(
@@ -502,12 +506,11 @@ namespace htmlUtils {
         );
         //+1 to skip "/'on the beginning
         return extractClassesFromString(classValue, outList);
-
     }
 
 
     /**
-     *
+     * Checks whatever tag given by tagBody is single tag or pair tag.
      * @param tagBody Body of tag inside brackets '<' body '>'
      * @return True if tag from @tagBody is single tag, false when tag is pair tag.
      * @since 1.0.0

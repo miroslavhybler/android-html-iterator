@@ -10,7 +10,8 @@
 #define ANDROID_HTML_ITERATOR_DEBUGCALLBACK_H
 
 /**
- *
+ * Debug callback just showing logs from content iteration.
+ * @since 1.0.0
  */
 class DebugLogCallback : public HtmlIteratorCallback {
 
