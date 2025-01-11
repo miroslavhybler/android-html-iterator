@@ -25,12 +25,22 @@ public:
         );
     }
 
+
     void onSingleTag(TagInfo &tag) override {
         platformUtils::log(
                 "HtmlIterator",
                 "DebugLogCallback -- onSingleTag() -- tag: " + tag.getTag()
         );
     }
+
+
+    void onScript(TagInfo &tag) override {
+        platformUtils::log(
+                "HtmlIterator",
+                "DebugLogCallback -- onScript() -- tag: " + tag.getTag()
+        );
+    }
+
 
     bool onPairTag(
             TagInfo &tag,
@@ -46,6 +56,7 @@ public:
 
         return true;
     };
+
 
     void onLeavingPairTag(TagInfo &tag) override {
         platformUtils::log(

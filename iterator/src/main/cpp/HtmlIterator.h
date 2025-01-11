@@ -30,7 +30,7 @@ private:
 
     /**
      * Holding current html content text. Is set by @setContent. Can be whole html document content
-     * wrapped in <html> tag or can be a clip of html content to be processed.
+     * most likely wrapped in <html> tag or can be a clip of html styled content to be processed.
      * @since 1.0.0
      */
     std::string content;
@@ -104,6 +104,7 @@ private:
     char lastCharBeforeFoundTag = 0;
 
 
+
     ////////////////////////////////////////////////////////////////////////////////////////////////
     /////
     /////   Public interface (constructors and functions)
@@ -125,11 +126,11 @@ public:
      * @param newContent
      * @since 1.0.0
      */
-    //TODO set isFullHtmlDocument flag somehow
     void setContent(std::string &newContent) {
         clear();
         this->content.append(newContent);
         this->contentLength = newContent.length();
+        this->isFullHtmlDocument = moveIndexToInitialPosition();
     }
 
 
@@ -159,6 +160,7 @@ public:
             this->tagStack.pop();
         }
 
+        lastCharBeforeFoundTag = 0;
         currentIndex = 0;
         contentLength = 0;
         isPreContext = false;
@@ -172,6 +174,7 @@ public:
      * via @callback which was set by @setCallback before.
      * @since 1.0.0
      */
+    //TODO more docs about whole process
     void iterate() {
         platformUtils::log("HtmlIterator", "HtmlIterator::iterate()");
         bool canIterate;
@@ -197,6 +200,17 @@ public:
     }
 
 
+    /**
+     *
+     * @return True if content set by setContent() is full html document, false when content is only
+     * html styled content.
+     * @since 1.0.0
+     */
+    [[nodiscard]] bool isContentFullHtmlDocument() const {
+        return this->isFullHtmlDocument;
+    }
+
+
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     /////
@@ -211,7 +225,7 @@ private:
     /**
      * Tries to move currentIndex into next html tag. Technically it moves to the next '<' character
      * and checks if its tag or not. Also queries all text content depend on context.
-     * @return True when sequence starting at @i is tag to be processed, false otherwise
+     * @return True when sequence starting at i is tag to be processed, false otherwise
      * @since 1.0.0
      */
     [[nodiscard]] bool moveIndexToNextTag() {
@@ -223,7 +237,7 @@ private:
         }
         //In this line, current char is < meaning that we are probably at the start of tag
         size_t outIndex;
-        bool isTag = canProcessIncomingSequence(content, contentLength, currentIndex, outIndex);
+        bool isTag = canProcessIncomingSequence(contentLength, currentIndex, outIndex);
 
         if (!isTag) {
             currentIndex = outIndex + 1;
@@ -264,13 +278,12 @@ private:
 
         if (!isHeadIterated) {
             //Skipping head tag
-            if (stringUtils::fastCompare(tag, "head")) {
+            if (stringUtils::equals(tag, "head")) {
                 isHeadIterated = true;
                 //index of < of closing tag
                 size_t closingTagStartIndex;
                 try {
                     closingTagStartIndex = findClosingTag(
-                            content,
                             tag,
                             tagEndIndex + 1,
                             contentLength,
@@ -295,7 +308,10 @@ private:
 
         if (callback != nullptr) {
             if (!currentSharedContent.empty()) {
-                if (currentSharedContent.size() > 1) {
+                if (!(currentSharedContent.length() == 1
+                      && stringUtils::isWhiteChar(currentSharedContent[0]))
+                        ) {
+                    //We can call onContentText only when currentSharedContent is not only one white char
                     callback->onContentText(currentSharedContent);
                 }
                 currentSharedContent.clear();
@@ -305,7 +321,7 @@ private:
                 TagInfo lastTag = tagStack.top();
                 callback->onLeavingPairTag(lastTag);
 
-                if (stringUtils::fastCompare(tag, "/pre")) {
+                if (stringUtils::equals(tag, "/pre")) {
                     isPreContext = false;
                 }
 
@@ -318,16 +334,16 @@ private:
             if (info.isSingleTag()) {
                 callback->onSingleTag(info);
             } else {
-                if (stringUtils::fastCompare(tag, "pre")) {
+                //TODO unit test
+                if (stringUtils::equals(tag, "pre")) {
                     isPreContext = true;
                 }
-                tagStack.push(info);
 
                 //closing tag start index
                 size_t closingTagStartIndex;
                 try {
                     closingTagStartIndex = findClosingTag(
-                            content, tag,
+                            tag,
                             tagEndIndex + 1,
                             contentLength,
                             contentLength
@@ -340,29 +356,35 @@ private:
                     platformUtils::log("HtmlIterator", "Error: " + std::string(e.what()));
                     return;
                 }
+
                 //Closing tag end index
                 //+ 2 because of chars '/' and >;
                 size_t closingTagEndIndex = closingTagStartIndex + tag.length() + 2;
 
-                bool stepInto = callback->onPairTag(
-                        info,
-                        currentIndex,
-                        tagEndIndex,
-                        closingTagStartIndex,
-                        closingTagEndIndex
-                );
-
-                if (stepInto) {
-                    currentIndex = tagEndIndex + 1;
-
-                } else {
-                    //TODO this call is unnecessary
-                    callback->onLeavingPairTag(info);
+                //TODO unit test
+                if (stringUtils::equals(tag, "script")) {
+                    callback->onScript(info);
                     currentIndex = closingTagStartIndex + 1;
+                    return;
+                } else {
+                    //Adding tag into stack after closing tag is found succesfully to manage consistency
+                    tagStack.push(info);
+
+                    bool stepInto = callback->onPairTag(
+                            info,
+                            currentIndex,
+                            tagEndIndex,
+                            closingTagStartIndex,
+                            closingTagEndIndex
+                    );
+
+                    if (stepInto) {
+                        currentIndex = tagEndIndex + 1;
+                    } else {
+                        currentIndex = closingTagStartIndex + 1;
+                    }
                 }
-
                 return;
-
             }
         } else {
             platformUtils::log("HtmlIterator", "Callback is null!!");
@@ -394,22 +416,83 @@ private:
             return;
         }
 
-        bool isSpace = ch == ' ';
-        bool isCharWhite = isSpace || ch == '\n' || ch == '\t';
+        bool isCharWhite = stringUtils::isWhiteChar(ch);
         if (!isCharWhite) {
             currentSharedContent += ch;
         } else {
-            //We are outside of <pre> tag, always one white char is enabled to be visible between
-            //other charters.
-            size_t suffix = currentSharedContent.find(
-                    ' ',
-                    currentSharedContent.size() - 1
-            );
-            if (isSpace && suffix == std::string::npos && lastCharBeforeFoundTag != ' ') {
-                //currentSharedContent's last char is not white, so we can append new char
-                currentSharedContent += ch;
+            if (!currentSharedContent.empty()) {
+                //We are outside of <pre> tag, always one white char is enabled to be visible between
+                //other charters.
+                size_t lastIndex = currentSharedContent.size() - 1;
+                if (currentSharedContent[lastIndex] != ' ' && ch == ' ') {
+                    //currentSharedContent's last char is not white, so we can append new char
+                    currentSharedContent += ch;
+                }
             }
         }
+    }
+
+
+    /**
+     * Moves currentIndex to first tag of content.
+     * @return True when content is full html document wrapped in <html> tag or some equivalent, false
+     * when content is just some clipped html content (some <div> code or some formatted text).
+     * @since 1.0.0
+     */
+    //TODO when first non white char is not <  return false.
+    //TODO think about all the cases
+    [[nodiscard]] bool moveIndexToInitialPosition() {
+        size_t firstI = stringUtils::nextNonWhiteChar(content, 0, contentLength);
+        if (firstI == std::string::npos) {
+            //Content is "blank" (empty), containing only white chars
+            this->currentIndex = contentLength;
+            return false;
+        }
+
+        if (content[firstI] != '<') {
+            return false;
+        }
+
+        this->currentIndex = firstI;
+
+
+        while (!moveIndexToNextTag() && currentIndex < contentLength) {
+            //Waiting for move index to the first tag of content
+        }
+
+        //TODO better implementation
+        if ((currentIndex + 4) < contentLength) {
+            std::string sub;
+            size_t il = currentIndex + 1 + 4;
+            try {
+                sub = content.substr(currentIndex + 1, 4);
+            } catch (std::out_of_range &e) {
+                return false;
+            }
+
+
+            if (stringUtils::equals(sub, "html")) {
+                this->currentIndex = il;
+                return true;
+            }
+        }
+        if ((currentIndex + 14) < contentLength) {
+            std::string sub;
+            size_t il = currentIndex + 1 + 13;
+            try {
+                sub = content.substr(currentIndex + 1, 13);
+            } catch (std::out_of_range &e) {
+                return false;
+            }
+
+
+            if (stringUtils::equalsCaseInsensitive(sub, "!doctype html")) {
+                this->currentIndex = il;
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -423,8 +506,7 @@ private:
      * @return True if string being '<' ic actual tag, false otherwise.
      * @since 1.0.0
      */
-    static bool canProcessIncomingSequence(
-            std::string &input,
+    [[nodiscard]] bool canProcessIncomingSequence(
             const size_t &l,
             const size_t &s,
             size_t &outIndex
@@ -441,16 +523,16 @@ private:
             std::string sub;
             size_t il = i + 3;
             try {
-                sub = input.substr(i + 1, 3);
+                sub = content.substr(i + 1, 3);
             } catch (std::out_of_range &e) {
                 return false;
             }
 
-            if (stringUtils::fastCompare(sub, "!--")) {
+            if (stringUtils::equals(sub, "!--")) {
                 //In this case next sequence after < is comment,skipping at the end of comment
                 size_t ei;
                 try {
-                    ei = stringUtils::indexOfOrThrow(input, "-->", il);
+                    ei = stringUtils::indexOfOrThrow(content, "-->", il);
                 } catch (std::runtime_error &e) {
                     return false;
                 }
@@ -463,26 +545,12 @@ private:
             std::string sub;
             size_t il = i + 12;
             try {
-                sub = input.substr(i + 1, 12);
+                sub = content.substr(i + 1, 12);
             } catch (std::out_of_range &e) {
                 return false;
             }
 
-            if (stringUtils::fastCompare(sub, "/![cdata[//>")) {
-                outIndex = il;
-                return false;
-            }
-        }
-        if ((i + 14) < l) {
-            std::string sub;
-            size_t il = i + 14;
-            try {
-                sub = input.substr(i + 1, 14);
-            } catch (std::out_of_range &e) {
-                return false;
-            }
-            //TODO add boolean to eliminate this
-            if (stringUtils::fastCompare(sub, "!doctype html>")) {
+            if (stringUtils::equals(sub, "/![cdata[//>")) {
                 outIndex = il;
                 return false;
             }
@@ -513,8 +581,7 @@ private:
     * @return Index if start of the closing tag, index of '<' char
     * @since 1.0.0
     */
-    static size_t findClosingTag(
-            std::string &input,
+    [[nodiscard]] size_t findClosingTag(
             std::string &searchedTag,
             size_t s,
             size_t e,
@@ -527,14 +594,14 @@ private:
 
         size_t end = e > 0 ? e : length;
         while (i < end) {
-            char ch = input[i];
+            char ch = content[i];
             if (ch != '<' && i < end) {
                 i += 1;
                 continue;
             }
 
             //char is '<'
-            if (!canProcessIncomingSequence(input, length, i, outI)) {
+            if (!canProcessIncomingSequence(length, i, outI)) {
                 //Unable to process
                 if (i == outI) {
                     i += 1;
@@ -545,17 +612,17 @@ private:
             }
 
             //TagType closing index, index of next '>'
-            size_t tei = stringUtils::indexOfOrThrow(input, ">", i);
+            size_t tei = stringUtils::indexOfOrThrow(content, ">", i);
             // -1 to remove '>' at the end
             size_t tagBodyLength = tei - i - 1;
             //tag body within <>, currentIndex + 1 to remove '<'
-            std::string tagBody = input.substr(i + 1, tagBodyLength);
+            std::string tagBody = content.substr(i + 1, tagBodyLength);
             std::string rawTagName = htmlUtils::getTagName(tagBody);
             bool isClosingTag = rawTagName[0] == '/';
 
             if (isClosingTag) {
-                std::string tagName = input.substr(i + 2, rawTagName.length() - 1);
-                if (stringUtils::fastCompare(tagName, searchedTag)) {
+                std::string tagName = content.substr(i + 2, rawTagName.length() - 1);
+                if (stringUtils::equals(tagName, searchedTag)) {
                     if (tempWorkingNumber > 0) {
                         //Stack is not empty, means that we found closing of inner same tag
                         tempWorkingNumber -= 1;
@@ -564,7 +631,7 @@ private:
                     }
                 }
             } else {
-                if (stringUtils::fastCompare(searchedTag, rawTagName)) {
+                if (stringUtils::equals(searchedTag, rawTagName)) {
                     //Push because inside tag is another one, like p in p -> <p><p>...</p></p>
                     tempWorkingNumber += 1;
                 }
@@ -576,6 +643,8 @@ private:
                 "Unable to find closing tag for: " + std::string(searchedTag)
         );
     }
+
+
 };
 
 

@@ -145,7 +145,7 @@ class TagInfoTest : BaseAndroidTest() {
             openingTagEndIndex: Int,
             closingTagStartIndex: Int,
             closingTagEndIndex: Int
-        ) {
+        ): Boolean {
             when (tag.tag) {
                 "div" -> when (tag.attributes["id"]) {
                     "main-content" -> {
@@ -172,6 +172,7 @@ class TagInfoTest : BaseAndroidTest() {
                     aResult = Results.a.compareByValues(tagInfo = tag)
                 }
             }
+            return true
         }
     }
 

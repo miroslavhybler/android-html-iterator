@@ -34,6 +34,13 @@ public:
 
 
     /**
+     * Called from HtmlIterator when script tag is found
+     * @param tag
+     */
+    virtual void onScript(TagInfo &tag) = 0;
+
+
+    /**
      * Called from HtmlIterator when pair tag is found.
      * @param tag
      * @return True when iterator should iterate through content of pair tag, false otherwise, allowing

@@ -14,6 +14,7 @@
 /**
  *
  */
+//TODO try preload global preferences for performance
 class JniHtmlIteratorCallback : public HtmlIteratorCallback {
 
 private:
@@ -78,6 +79,12 @@ public:
     }
 
 
+    /**
+     *
+     * @param tag
+     * @throw std::runtime_error if method 'onSingleTag' is not found in kotlin callback class or when
+     * 'TagInfo' could not be constructed in java.
+     */
     void onSingleTag(TagInfo &tag) override {
         jmethodID methodId = environment->GetMethodID(
                 environment->GetObjectClass(callbackRef),
@@ -86,28 +93,30 @@ public:
         );
 
         if (methodId == nullptr) {
-            platformUtils::log(
-                    "Unable to find method 'onSingleTag' in kotlin callback class.",
-                    ANDROID_LOG_ERROR
-            );
-            return;
+            std::string errorMessage = "Unable to find method 'onSingleTag' in kotlin callback class.";
+            platformUtils::log(errorMessage, ANDROID_LOG_ERROR);
+            throw std::runtime_error(errorMessage);
         }
 
         jobject tagInfoKotlin = createKotlinTagInfo(tag);
-        if (tagInfoKotlin == nullptr) {
-            platformUtils::log(
-                    "Error creating Kotlin TagInfo object!! Check createKotlinTagInfo() method implementation.",
-                    ANDROID_LOG_ERROR
-            );
-            return;
-        }
 
         environment->CallVoidMethod(callbackRef, methodId, tagInfoKotlin);
         environment->DeleteGlobalRef(tagInfoKotlin);
 
     }
 
-
+    /**
+     *
+     * @param tag
+     * @param openingTagStartIndex
+     * @param openingTagEndIndex
+     * @param closingTagStartIndex
+     * @param closingTagEndIndex
+     * @return
+     * @throw std::runtime_error if method 'onPairTag' is not found in kotlin callback class or when
+     * 'TagInfo' could not be constructed in java.
+     * @since 1.0.0
+     */
     bool onPairTag(
             TagInfo &tag,
             size_t openingTagStartIndex,
@@ -118,32 +127,23 @@ public:
         jmethodID methodId = environment->GetMethodID(
                 environment->GetObjectClass(callbackRef),
                 "onPairTag",
-                "(Lcom/htmliterator/TagInfo;IIII)V"
+                "(Lcom/htmliterator/TagInfo;IIII)Z"
         );
 
         if (methodId == nullptr) {
-            platformUtils::log(
-                    "Unable to find method 'onPairTag' in kotlin callback class.",
-                    ANDROID_LOG_ERROR
-            );
-            return true;
+            std::string errorMesssage = "Unable to find method 'onPairTag' in kotlin callback class.";
+            platformUtils::log(errorMesssage, ANDROID_LOG_ERROR);
+            throw std::runtime_error(errorMesssage);
         }
 
         jobject tagInfoKotlin = createKotlinTagInfo(tag);
-        if (tagInfoKotlin == nullptr) {
-            platformUtils::log(
-                    "Error creating Kotlin TagInfo object!! Check createKotlinTagInfo() method implementation.",
-                    ANDROID_LOG_ERROR
-            );
-            return true;
-        }
         kotlinTagInfoStack.push(tagInfoKotlin);
         jint jOpeningTagStartIndex = static_cast<jint>(openingTagEndIndex);
         jint jOpeningTagEndIndex = static_cast<jint>(openingTagEndIndex);
         jint jClosingTagStartIndex = static_cast<jint>(closingTagStartIndex);
         jint jClosingTagEndIndex = static_cast<jint>(closingTagEndIndex);
 
-        environment->CallVoidMethod(
+        jboolean result = environment->CallBooleanMethod(
                 callbackRef,
                 methodId,
                 tagInfoKotlin,
@@ -153,10 +153,16 @@ public:
                 jClosingTagEndIndex
         );
 
-        return true;
+        return result;
     }
 
 
+    /**
+     *
+     * @param tag
+     * @throw std::runtime_error if method 'onLeavingPairTag' is not found in kotlin callback class
+     * @since 1.0.0
+     */
     void onLeavingPairTag(TagInfo &tag) override {
         jmethodID methodId = environment->GetMethodID(
                 environment->GetObjectClass(callbackRef),
@@ -165,14 +171,10 @@ public:
         );
 
         if (methodId == nullptr) {
-            platformUtils::log(
-                    "Unable to find method 'onLeavingPairTag' in kotlin callback class.",
-                    ANDROID_LOG_ERROR
-            );
-            return;
+            std::string errorMessage = "Unable to find method 'onLeavingPairTag' in kotlin callback class.";
+            platformUtils::log(errorMessage, ANDROID_LOG_ERROR);
+            throw std::runtime_error(errorMessage);
         }
-
-        //TODO store refs, this is making tagInfo twice (enter/exit)
 
         jobject tagInfoKotlin = kotlinTagInfoStack.top();
         environment->CallVoidMethod(callbackRef, methodId, tagInfoKotlin);
@@ -180,6 +182,24 @@ public:
         kotlinTagInfoStack.pop();
     }
 
+
+    void onScript(TagInfo &tag) override {
+        jmethodID methodId = environment->GetMethodID(
+                environment->GetObjectClass(callbackRef),
+                "onScript",
+                "(Lcom/htmliterator/TagInfo;)V"
+        );
+        if (methodId == nullptr) {
+            platformUtils::log(
+                    "Unable to find method 'onScript' in kotlin callback class.",
+                    ANDROID_LOG_ERROR
+            );
+        }
+        jobject tagInfoKotlin = createKotlinTagInfo(tag);
+
+        environment->CallVoidMethod(callbackRef, methodId, tagInfoKotlin);
+        environment->DeleteGlobalRef(tagInfoKotlin);
+    }
 
 private:
 
@@ -204,7 +224,12 @@ private:
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/List;Z)V"
         );
         if (!constructor) {
-            return nullptr;
+            std::string errorMessage =
+                    "Error creating Kotlin TagInfo object, unable to find constructor in java!! "
+                    "Check createKotlinTagInfo() method implementation.";
+            platformUtils::log(errorMessage, ANDROID_LOG_ERROR);
+            throw std::runtime_error(errorMessage);
+
         }
 
         // Convert C++ fields to JNI types

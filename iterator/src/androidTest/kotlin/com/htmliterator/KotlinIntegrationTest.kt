@@ -10,6 +10,7 @@ import org.junit.runner.RunWith
  * * Construction of TagInfo data class
  * * Settings [HtmlIterator.Callback] jobject reference in c++
  * * Calling [HtmlIterator.Callback] functions with results
+ * Then the test is done by retrieved data and compare to expected [Results]
  * @author Miroslav Hýbler <br>
  * created on 27.11.2024
  */
@@ -18,7 +19,7 @@ class KotlinIntegrationTest : BaseAndroidTest() {
 
 
     /**
-     * Results for integration test from elements-iteration-test.file.
+     * Results for integration test from kotlin-integration-test.html file.
      */
     data object Results {
         const val SINGLE_TAGS_COUNT: Int = 3
@@ -51,11 +52,20 @@ class KotlinIntegrationTest : BaseAndroidTest() {
             openingTagEndIndex: Int,
             closingTagStartIndex: Int,
             closingTagEndIndex: Int,
-        ) {
+        ): Boolean {
+            super.onPairTag(
+                tag=tag,
+                openingTagStartIndex=openingTagStartIndex,
+                openingTagEndIndex=openingTagEndIndex,
+                closingTagStartIndex=closingTagStartIndex,
+                closingTagEndIndex=closingTagEndIndex,
+            )
             pairTagsCount += 1
+            return true
         }
 
         override fun onLeavingPairTag(tag: TagInfo) {
+            super.onLeavingPairTag(tag=tag)
             pairTagsLeft += 1
         }
     }
@@ -70,7 +80,7 @@ class KotlinIntegrationTest : BaseAndroidTest() {
     fun checkKotlinDefinition() {
 
         iterator.setCallback(callback = customCallback)
-        iterator.setContent(content = loadAsset(fileName = "elements-iteration-test.html"))
+        iterator.setContent(content = loadAsset(fileName = "kotlin-integration-test.html"))
         iterator.iterate()
 
         assertEquals(

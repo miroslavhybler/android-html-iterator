@@ -29,7 +29,7 @@ Java_com_htmliterator_HtmlIterator_setContent(
         jstring content
 ) {
     jboolean isCopy = false;
-  std::string input = environment->GetStringUTFChars(content, &isCopy);
+    std::string input = environment->GetStringUTFChars(content, &isCopy);
     jni::instance->setContent(input);
 }
 
@@ -61,7 +61,7 @@ Java_com_htmliterator_HtmlIterator_iterateSingleStep(
         JNIEnv *environment,
         jobject htmlIterato
 ) {
-    bool canIterate=jni::instance->iterateSingleIteration();
+    bool canIterate = jni::instance->iterateSingleIteration();
     return static_cast<jboolean>(canIterate);
 }
 
@@ -82,4 +82,15 @@ Java_com_htmliterator_HtmlIterator_setContentAndIterateDebug(
     callback = nullptr;
     jni::instance->clear();
 }
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_htmliterator_HtmlIterator_getIsContentFullHtmlDocument(
+        JNIEnv *environment,
+        jobject htmlIterator
+) {
+    return static_cast<jboolean>(jni::instance->isContentFullHtmlDocument());
+}
+
+
 #pragma clang diagnostic pop

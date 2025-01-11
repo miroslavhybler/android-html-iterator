@@ -43,10 +43,19 @@ class MainActivity : ComponentActivity() {
                 openingTagEndIndex: Int,
                 closingTagStartIndex: Int,
                 closingTagEndIndex: Int
-            ) {
+            ): Boolean {
+                super.onPairTag(
+                    tag = tag,
+                    openingTagStartIndex = openingTagStartIndex,
+                    openingTagEndIndex = openingTagEndIndex,
+                    closingTagStartIndex = closingTagStartIndex,
+                    closingTagEndIndex = closingTagEndIndex,
+                )
+                return true
             }
 
             override fun onLeavingPairTag(tag: TagInfo) {
+                super.onLeavingPairTag(tag = tag)
             }
 
             override fun onContentText(text: String) {
@@ -54,16 +63,17 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        //   HtmlIterator().setContentAndIterateDebug(content = loadAsset(fileName = "android.html"))
-
 
         lifecycleScope.launch {
             HtmlIterator.instance.let {
                 it.setCallback(callback)
-                it.setContent(content = loadAsset(fileName = "test.html"))
+                it.setContent(
+                    content = loadAsset(fileName = "test.html")
+                )
                 it.iterate()
             }
         }
+
 
 
 

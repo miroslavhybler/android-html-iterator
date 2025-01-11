@@ -3,6 +3,8 @@
 ///
 
 #include <string>
+#include <ranges>
+
 
 #ifndef ANDROID_HTML_ITERATOR_STRINGUTILS_H
 #define ANDROID_HTML_ITERATOR_STRINGUTILS_H
@@ -25,6 +27,14 @@ namespace stringUtils {
     std::function<bool(unsigned char)> trimPred = [](unsigned char ch) -> bool {
         return !std::isspace(ch);
     };
+
+
+    std::function<bool(unsigned char, unsigned char)> caseInsensitiveCompare =
+            [](char c1, char c2) {
+                int ch1 = std::tolower(static_cast<unsigned char>(c1));
+                int ch2 = std::tolower(static_cast<unsigned char>(c2));
+                return ch1 == ch2;
+            };
 
 
     /**
@@ -56,7 +66,7 @@ namespace stringUtils {
      * @param s2 String you want to compare with s1
      * @return True if strings are considered being same. False otherwise.
      */
-    bool fastCompare(
+    bool equals(
             const std::string_view &s1,
             const std::string_view &s2
     ) {
@@ -79,6 +89,23 @@ namespace stringUtils {
         }
 
         return s1 == s2;
+    }
+
+
+    bool equalsCaseInsensitive(
+            const std::string_view &s1,
+            const std::string_view &s2
+    ) {
+        // If the lengths differ, the strings can't be equal
+        if (s1.size() != s2.size()) return false;
+
+        // Compare each character in a case-insensitive manner
+        return std::equal(
+                s1.begin(),
+                s1.end(),
+                s2.begin(),
+                caseInsensitiveCompare
+        );
     }
 
 

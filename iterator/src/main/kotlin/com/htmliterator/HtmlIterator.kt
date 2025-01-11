@@ -1,12 +1,14 @@
 @file:Suppress(
     "unused",
     "RedundantConstructorKeyword",
-    "RedundantUnitReturnType",
+    "RedundantUnitReturnType", "RedundantVisibilityModifier",
 )
 
 package com.htmliterator
 
+import androidx.annotation.CallSuper
 import androidx.annotation.RestrictTo
+import java.util.Stack
 
 
 /**
@@ -14,10 +16,11 @@ import androidx.annotation.RestrictTo
  * created on 22.11.2024
  * @since 1.0.0
  */
-class HtmlIterator private constructor() {
+//TODO make object, doensn't make sense to have it as class
+public class HtmlIterator private constructor() {
 
 
-    companion object {
+    public companion object {
         init {
             //Load native library
             System.loadLibrary("html-iterator")
@@ -28,8 +31,15 @@ class HtmlIterator private constructor() {
          * Default instance of [com.htmliterator.HtmlIterator]
          * @since 1.0.0
          */
-        val instance: HtmlIterator = HtmlIterator()
+        public val instance: HtmlIterator = HtmlIterator()
     }
+
+
+    /**
+     *
+     */
+    public val isContentFullHtmlDocument: Boolean
+        get() = getIsContentFullHtmlDocument()
 
 
     /**
@@ -42,7 +52,7 @@ class HtmlIterator private constructor() {
 
 
     /**
-     * Sets [Callback] to iterator.
+     * Sets [callback] to iterator.
      * @since 1.0.0
      */
     external fun <C : Callback> setCallback(
@@ -72,10 +82,25 @@ class HtmlIterator private constructor() {
 
 
     /**
+     * Use [isContentFullHtmlDocument].
+     * @since 1.0.0
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    external fun getIsContentFullHtmlDocument(): Boolean
+
+
+    /**
      * @since 1.0.0
      */
     open class Callback constructor() {
 
+
+        //TODO obtain stack from c++ instaead of creating another in KT
+        val tagStack: Stack<TagInfo> = Stack()
+
+
+        var currentPairTag: TagInfo? = null
+            private set
 
         /**
          * @since 1.0.0
@@ -96,18 +121,40 @@ class HtmlIterator private constructor() {
         /**
          * @since 1.0.0
          */
+        //TODO indexes maybe not necessary
+        @CallSuper
         open fun onPairTag(
             tag: TagInfo,
             openingTagStartIndex: Int,
             openingTagEndIndex: Int,
             closingTagStartIndex: Int,
             closingTagEndIndex: Int,
-        ): Unit = Unit
+        ): Boolean {
+            tagStack.add(element = tag)
+            currentPairTag = tag
+
+            return true
+        }
 
 
         /**
          * @since 1.0.0
          */
-        open fun onLeavingPairTag(tag: TagInfo): Unit = Unit
+        open fun onLeavingPairTag(
+            tag: TagInfo,
+        ): Unit {
+            if (tagStack.isNotEmpty()) {
+                tagStack.pop()
+                currentPairTag = if (tagStack.isNotEmpty()) tagStack.peek() else null
+            }
+        }
+
+
+        /**
+         * @since 1.0.0
+         */
+        open fun onScript(
+            tag: TagInfo,
+        ): Unit = Unit
     }
 }

@@ -1,3 +1,5 @@
+@file:Suppress("RedundantUnitReturnType")
+
 package com.htmliterator
 
 import android.R
@@ -13,9 +15,12 @@ import java.io.IOException
 
 
 /**
- * Base class for Android tests.
+ * Base class for Android tests. Don't forget to annotate child class with `@RunWith(AndroidJUnit4::class)`.
+ * It's recommend to create `Results` object for each subclass so it's easier to find expected
+ * results.
  * @author Miroslav Hýbler <br>
  * created on 05.08.2024
+ * @since 1.0.0
  */
 abstract class BaseAndroidTest public constructor() {
 
@@ -25,6 +30,7 @@ abstract class BaseAndroidTest public constructor() {
 
     protected val assets: AssetManager
         get() = context.assets
+
 
     val iterator = HtmlIterator.instance
 
@@ -52,7 +58,7 @@ abstract class BaseAndroidTest public constructor() {
      * @param expected
      * @param message
      */
-    protected fun assertEquals(
+    protected inline fun assertEquals(
         actual: Int,
         expected: Int,
         message: () -> String = { "" },
@@ -68,11 +74,11 @@ abstract class BaseAndroidTest public constructor() {
      * @param expected
      * @param message
      */
-    protected fun assertEquals(
+    protected inline fun assertEquals(
         actual: Boolean,
         expected: Boolean,
         message: () -> String = { "" },
-    ) {
+    ): Unit {
         return junit.framework.TestCase.assertEquals(
             message(), expected, actual
         )
