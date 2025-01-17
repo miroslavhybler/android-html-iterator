@@ -5,6 +5,9 @@
 #include <string>
 #include <map>
 #include <iterator>
+#include <set>
+#include <cctype>
+#include <algorithm>
 #include "StringUtils.h"
 #include "PlatformUtils.h"
 
@@ -18,7 +21,7 @@ namespace htmlUtils {
      * List of standard single tags.
      * @since 1.0.0
      */
-    std::vector<std::string> singleTags = {
+    std::set<std::string_view> singleTags = {
             "img",
             "input",
             "br",
@@ -31,6 +34,26 @@ namespace htmlUtils {
             "source",
             "track",
             "wbr"
+    };
+
+
+    /**
+ * @since 1.0.0
+ */
+    const std::set<std::string_view> textStyleTags = {
+            "span",
+            "a",
+            "b",
+            "i",
+            "u",
+            "strong",
+            "em",
+            "mark",
+            "small",
+            "del",
+            "ins",
+            "sub",
+            "sup",
     };
 
     auto singleTagsIteratorBegin = singleTags.begin();
@@ -126,15 +149,15 @@ namespace htmlUtils {
                 if (nextNonWhiteChar == '"') {
                     attributeValueEndIndex = stringUtils::indexOf(
                             tagBody,
-                            "\"",
+                            '"',
                             attributeValueStartIndex + 1
                     );
 
                 } else if (nextNonWhiteChar == '\'') {
                     attributeValueEndIndex = stringUtils::indexOf(
                             tagBody,
-                            "\'",
-                            attributeNameEndIndex + 1
+                            '\'',
+                            attributeValueStartIndex + 1
                     );
                 } else {
                     //Closing double quote or apostrophe not found, probably error in syntax, continue
@@ -157,240 +180,6 @@ namespace htmlUtils {
         }
     }
 
-
-    void getTagAttributes(
-            const std::string &content,
-            std::map<std::string, std::string> &outMap,
-            size_t s,
-            size_t e
-    ) {
-        size_t i = s;
-        size_t lastIndexBeforeWhiteChar = s;
-        char ch;
-
-        i = stringUtils::nextWhiteChar(content, i, e);
-
-        if (i == std::string::npos) {
-            //There are not any attributes in tag
-            return;
-        }
-
-        while (i < e) {
-            ch = content[i];
-            auto isWhiteChar = stringUtils::isWhiteChar(ch);
-
-            while (isWhiteChar && i < e) {
-                i += 1;
-                ch = content[i];
-                isWhiteChar = stringUtils::isWhiteChar(ch);
-            }
-
-            // int ni = stringUtils::indexOf(content, " ", i);
-            if (i >= e) {
-                //Tag has no attributes defined within it's body or we read all attributes already
-                return;
-            }
-            size_t attributeNameStartIndex = i;
-            bool isEqualSignRequired = false;
-
-            while ((ch != '=') && i < e) {
-                if (!isWhiteChar) {
-                    if (isEqualSignRequired) {
-                        //Attribute has no value
-                        break;
-                    }
-                    lastIndexBeforeWhiteChar = i;
-                }
-
-                if (isWhiteChar && !isEqualSignRequired) {
-                    //Character is white, end of attribute name
-                    isEqualSignRequired = true;
-                }
-
-                ch = content[++i];
-                isWhiteChar = stringUtils::isWhiteChar(ch);
-            }
-
-            bool isEqualSign = ch == '=';
-
-            size_t attributeNameEndIndex = lastIndexBeforeWhiteChar;
-            std::string attributeName = content.substr(
-                    attributeNameStartIndex,
-                    attributeNameEndIndex -
-                    attributeNameStartIndex + 1
-            );
-
-            if (isEqualSignRequired && !isEqualSign) {
-                //In this case, attribute has no value
-                outMap[attributeName] = "";
-                continue;
-            } else {
-                //Attribute has value
-
-                //i + 1 because content[i] == '='
-                size_t attributeValueStartIndex = i + 1;
-                size_t nextNonWhiteCharIndex = stringUtils::nextNonWhiteChar(
-                        content,
-                        attributeValueStartIndex,
-                        e
-                );
-
-                char nextNonWhiteChar = content[nextNonWhiteCharIndex];
-                size_t attributeValueEndIndex;
-                if (nextNonWhiteChar == '"') {
-                    attributeValueEndIndex = stringUtils::indexOf(
-                            content,
-                            "\"",
-                            attributeValueStartIndex + 1
-                    );
-
-                } else if (nextNonWhiteChar == '\'') {
-                    attributeValueEndIndex = stringUtils::indexOf(
-                            content,
-                            "\'",
-                            attributeNameEndIndex + 1
-                    );
-                } else {
-                    //Closing double quote or apostrophe not found, probably error in syntax, continue
-                    continue;
-                }
-
-                //Plus 1 and minus 1 to remove " or ' from attribute value edges "value" -> value
-                std::string attributeValue = content.substr(
-                        attributeValueStartIndex + 1,
-                        attributeValueEndIndex - attributeValueStartIndex - 1
-                );
-
-                stringUtils::trim(attributeName);
-                stringUtils::trim(attributeValue);
-                outMap[attributeName] = attributeValue;
-                i = attributeValueEndIndex + 1;
-            }
-        }
-    }
-
-
-    /**
-     * Extracts single attribute value for attribute name @attributeName from @tagBody
-     * @param tagBody
-     * @param name
-     * @return
-     * @since 1.0.0
-     */
-    std::string getTagAttributeValue(
-            const std::string &tagBody,
-            const std::string &name
-    ) {
-        size_t length = tagBody.length();
-        size_t i = 0;
-        size_t lastIndexBeforeWhiteChar = 0;
-        char ch;
-
-        i = stringUtils::nextWhiteChar(tagBody, i, length);
-
-        if (i == std::string::npos) {
-            //There are not any attributes in tag
-            return "";
-        }
-
-        while (i < length) {
-            ch = tagBody[i];
-            auto isWhiteChar = stringUtils::isWhiteChar(ch);
-
-            while (isWhiteChar && i < length) {
-                i += 1;
-                ch = tagBody[i];
-                isWhiteChar = stringUtils::isWhiteChar(ch);
-            }
-
-            // int ni = stringUtils::indexOf(tagBody, " ", i);
-            if (i >= length) {
-                //Tag has no attributes defined within it's body or we read all attributes already
-                return "";
-            }
-            size_t attributeNameStartIndex = i;
-            bool isEqualSignRequired = false;
-
-            while ((ch != '=') && i < length) {
-                if (!isWhiteChar) {
-                    if (isEqualSignRequired) {
-                        //Attribute has no value
-                        break;
-                    }
-                    lastIndexBeforeWhiteChar = i;
-                }
-
-                if (isWhiteChar && !isEqualSignRequired) {
-                    //Character is white, end of attribute name
-                    isEqualSignRequired = true;
-                }
-
-                ch = tagBody[++i];
-                isWhiteChar = stringUtils::isWhiteChar(ch);
-            }
-
-            bool isEqualSign = ch == '=';
-
-            size_t attributeNameEndIndex = lastIndexBeforeWhiteChar;
-            std::string attributeName = tagBody.substr(
-                    attributeNameStartIndex,
-                    attributeNameEndIndex -
-                    attributeNameStartIndex + 1
-            );
-
-            bool isSearched = attributeName == name;
-
-            if (isEqualSignRequired && !isEqualSign) {
-                if (isSearched) {
-                    //In this case, attribute has no value
-                    return "";
-                }
-                continue;
-            } else {
-                //Attribute has value
-
-                //i + 1 because tagBody[i] == '='
-                size_t attributeValueStartIndex = i + 1;
-                size_t nextNonWhiteCharIndex = stringUtils::nextNonWhiteChar(
-                        tagBody,
-                        attributeValueStartIndex,
-                        length
-                );
-
-                char nextNonWhiteChar = tagBody[nextNonWhiteCharIndex];
-                size_t attributeValueEndIndex;
-                if (nextNonWhiteChar == '"') {
-                    attributeValueEndIndex = stringUtils::indexOf(
-                            tagBody,
-                            "\"",
-                            attributeValueStartIndex + 1
-                    );
-
-                } else if (nextNonWhiteChar == '\'') {
-                    attributeValueEndIndex = stringUtils::indexOf(
-                            tagBody,
-                            "\'",
-                            attributeNameEndIndex + 1
-                    );
-                } else {
-                    //Closing double quote or apostrophe not found, probably error in syntax, continue
-                    return "";
-                }
-
-                //Plus 1 and minus 1 to remove " or ' from attribute value edges "value" -> value
-                std::string attributeValue = tagBody.substr(
-                        attributeValueStartIndex + 1,
-                        attributeValueEndIndex - attributeValueStartIndex - 1
-                );
-
-                stringUtils::trim(attributeName);
-                stringUtils::trim(attributeValue);
-                return attributeValue;
-            }
-        }
-
-        return "";
-    }
 
 
     /**
@@ -509,6 +298,53 @@ namespace htmlUtils {
     }
 
 
+    void normalizeText(
+            std::string &text
+    ) {
+        // Trim leading and trailing whitespace
+        auto start = text.begin();
+        while (start != text.end() && std::isspace(static_cast<unsigned char>(*start))) {
+            ++start;
+        }
+
+        auto end = text.end();
+        while (end != start && std::isspace(static_cast<unsigned char>(*(end - 1)))) {
+            --end;
+        }
+
+        // Keep only one space at the beginning and end if there was any whitespace
+        bool hasLeadingSpace = (start != text.begin());
+        bool hasTrailingSpace = (end != text.end());
+
+        // Reduce the middle whitespace and remove invalid characters
+        auto writeIt = text.begin();
+        bool inWhitespace = false;
+
+        for (auto it = start; it != end; ++it) {
+            if (std::isspace(static_cast<unsigned char>(*it))) {
+                if (!inWhitespace) {
+                    *writeIt++ = ' '; // Replace first whitespace sequence with a single space
+                    inWhitespace = true;
+                }
+            } else {
+                *writeIt++ = *it; // Copy non-whitespace characters
+                inWhitespace = false;
+            }
+        }
+
+        // Resize the string to remove the excess characters
+        text.erase(writeIt, text.end());
+
+        // Add leading and trailing spaces if needed
+        if (hasLeadingSpace) {
+            text.insert(text.begin(), ' ');
+        }
+        if (hasTrailingSpace) {
+            text.push_back(' ');
+        }
+    }
+
+
     /**
      * Checks whatever tag given by tagBody is single tag or pair tag.
      * @param tagBody Body of tag inside brackets '<' body '>'
@@ -534,6 +370,17 @@ namespace htmlUtils {
         } else {
             return false;
         }
+    }
+
+
+    /**
+     *
+     * @param tag
+     * @return
+     * @since 1.0.0
+     */
+    bool isTextStyleTag(std::string &tag) {
+        return textStyleTags.find(tag) != textStyleTags.end();
     }
 }
 
