@@ -270,6 +270,50 @@ namespace stringUtils {
         rtrim(s);
     }
 
+    /**
+     * TODO docs
+     * @param str
+     * @return
+     */
+    bool isOnlyWhiteChars(const std::string &str) {
+        return std::all_of(str.begin(), str.end(), [](unsigned char ch) {
+            return std::isspace(ch);
+        });
+    }
+
+    bool startsWith(
+            const std::string &text,
+            const char &ch
+    ) {
+        return !text.empty() && text.front() == ch;
+    }
+
+    bool startsWith(
+            const std::string_view &text,
+            const char &ch
+    ) {
+        return !text.empty() && text.front() == ch;
+    }
+
+
+    bool endsWith(
+            const std::string &text,
+            const char &ch
+    ) {
+        return !text.empty() && text.back() == ch;
+    }
+
+
+    bool endsWith(
+            const std::string_view &text,
+            const char &ch
+    ) {
+        return !text.empty() && text.back() == ch;
+    }
+
+
+
+
 
     /**
      * Splits input string input by separator and writes it into outList
@@ -357,7 +401,13 @@ namespace stringUtils {
     }
 
 
-    std::string listToString(std::vector<std::string_view> &list) {
+    /**
+     * TODO docs
+     * @param list
+     * @return
+     */
+    std::string listToString(std::vector<std::string_view> &list
+    ) {
         std::string output;
 
 

@@ -52,6 +52,13 @@ private:
 
 
     /**
+     * TODO docs
+     * @since 1.0.0
+     */
+    std::stack<std::string> textNodes;
+
+
+    /**
      * Callback used to deliver steps of iterations. Must be set by @setCallback, otherwise iterator
      * will not continue because there is no where to deliver result, so whole process would be useless.
      * @since 1.0.0
@@ -94,15 +101,6 @@ private:
      * @since 1.0.0
      */
     bool isFullHtmlDocument = false;
-
-
-    /**
-     * Holds last character before currentIndex went into <pre> tag context to format output text correctly. By
-     * html rules there cannot be two white chars displayed, only in <pre> tag.
-     * @since 1.0.0
-     */
-    char lastCharBeforeFoundTag = 0;
-
 
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +149,6 @@ public:
      */
     void clear() {
         this->content.clear();
-        //  this->currentTagInfo.clear();
         this->currentSharedContent.clear();
         this->contentLength = 0;
         this->contentLength = 0;
@@ -160,12 +157,15 @@ public:
             this->tagStack.pop();
         }
 
-        lastCharBeforeFoundTag = 0;
-        currentIndex = 0;
-        contentLength = 0;
-        isPreContext = false;
-        isHeadIterated = false;
-        isFullHtmlDocument = false;
+        while (!this->textNodes.empty()) {
+            this->textNodes.pop();
+        }
+
+        this->currentIndex = 0;
+        this->contentLength = 0;
+        this->isPreContext = false;
+        this->isHeadIterated = false;
+        this->isFullHtmlDocument = false;
     }
 
 
@@ -177,6 +177,12 @@ public:
     //TODO more docs about whole process
     void iterate() {
         platformUtils::log("HtmlIterator", "HtmlIterator::iterate()");
+
+        if (callback == nullptr) {
+            platformUtils::log("HtmlIterator", "Unable to iterate, callback is null!");
+            return;
+        }
+
         bool canIterate;
         do {
             canIterate = iterateSingleIteration();
@@ -232,7 +238,6 @@ private:
         char ch = content[currentIndex];
         while (ch != '<' && currentIndex < contentLength) {
             tryAppendCharToContent(ch);
-            lastCharBeforeFoundTag = ch;
             ch = content[++currentIndex];
         }
         //In this line, current char is < meaning that we are probably at the start of tag
@@ -247,7 +252,7 @@ private:
 
 
     /**
-     * Called from moveIndexToNextTag when currentIndex is pointing to '<' char and sequence after it is valid
+     * Called from moveIndexToNextTag() when currentIndex is pointing to '<' char and sequence after it is valid
      * html tag (validated by canProcessIncomingSequence). Extracts current tag info into currentTagInfo and
      * call callback method to deliver result.
      * @since 1.0.0
@@ -276,8 +281,9 @@ private:
         std::string tag = htmlUtils::getTagName(currentTagBody);
         bool isClosing = currentTagBody[0] == '/';
 
-        if (!isHeadIterated) {
+        if (isFullHtmlDocument && !isHeadIterated) {
             //Skipping head tag
+            //TODO maybe remove skpping head tag
             if (stringUtils::equals(tag, "head")) {
                 isHeadIterated = true;
                 //index of < of closing tag
@@ -303,92 +309,90 @@ private:
             }
         }
 
+
+        if (isClosing && !tagStack.empty()) {
+            TagInfo lastTag = tagStack.top();
+            callback->onLeavingPairTag(lastTag);
+
+            //TODO additional check for closing tag if text should be visible (somehow??)
+            //TODO definitely use tag (because pre)
+            trySendContentText(lastTag);
+
+            if (stringUtils::equals(tag, "/pre")) {
+                isPreContext = false;
+            }
+
+            tagStack.pop();
+            currentIndex = tagEndIndex + 1;
+            return;
+        }
+
         //Extracts tag info from current tag body
         TagInfo info = TagInfo(tag, currentTagBody);
+        trySendContentText(info);
 
-        if (callback != nullptr) {
-            if (!currentSharedContent.empty()) {
-                if (!(currentSharedContent.length() == 1
-                      && stringUtils::isWhiteChar(currentSharedContent[0]))
-                        ) {
-                    //We can call onContentText only when currentSharedContent is not only one white char
-                    callback->onContentText(currentSharedContent);
-                }
-                currentSharedContent.clear();
-            }
-
-            if (isClosing && !tagStack.empty()) {
-                TagInfo lastTag = tagStack.top();
-                callback->onLeavingPairTag(lastTag);
-
-                if (stringUtils::equals(tag, "/pre")) {
-                    isPreContext = false;
-                }
-
-                tagStack.pop();
-                currentIndex = tagEndIndex + 1;
-                return;
-            }
-
-
-            if (info.isSingleTag()) {
-                callback->onSingleTag(info);
-            } else {
-                //TODO unit test
-                if (stringUtils::equals(tag, "pre")) {
-                    isPreContext = true;
-                }
-
-                //closing tag start index
-                size_t closingTagStartIndex;
-                try {
-                    closingTagStartIndex = findClosingTag(
-                            tag,
-                            tagEndIndex + 1,
-                            contentLength,
-                            contentLength
-                    );
-                } catch (std::runtime_error &e) {
-                    //Html content can have syntax errors like unclosed pair tags or others,
-                    //so library should keep going, browsers are also ignoring these errors
-                    //Just keep parsing, just keep parsing
-                    currentIndex = tagEndIndex + 1;
-                    platformUtils::log("HtmlIterator", "Error: " + std::string(e.what()));
-                    return;
-                }
-
-                //Closing tag end index
-                //+ 2 because of chars '/' and >;
-                size_t closingTagEndIndex = closingTagStartIndex + tag.length() + 2;
-
-                //TODO unit test
-                if (stringUtils::equals(tag, "script")) {
-                    callback->onScript(info);
-                    currentIndex = closingTagStartIndex + 1;
-                    return;
-                } else {
-                    //Adding tag into stack after closing tag is found succesfully to manage consistency
-                    tagStack.push(info);
-
-                    bool stepInto = callback->onPairTag(
-                            info,
-                            currentIndex,
-                            tagEndIndex,
-                            closingTagStartIndex,
-                            closingTagEndIndex
-                    );
-
-                    if (stepInto) {
-                        currentIndex = tagEndIndex + 1;
-                    } else {
-                        currentIndex = closingTagStartIndex + 1;
-                    }
-                }
-                return;
-            }
+        if (info.isSingleTag()) {
+            callback->onSingleTag(info);
         } else {
-            platformUtils::log("HtmlIterator", "Callback is null!!");
+            //TODO unit test
+            if (stringUtils::equals(tag, "pre")) {
+                isPreContext = true;
+            }
+
+            //closing tag start index
+            size_t closingTagStartIndex;
+            try {
+                closingTagStartIndex = findClosingTag(
+                        tag,
+                        tagEndIndex + 1,
+                        contentLength,
+                        contentLength
+                );
+            } catch (std::runtime_error &e) {
+                //Html content can have syntax errors like unclosed pair tags or others,
+                //so library should keep going, browsers are also ignoring these errors
+                //Just keep parsing, just keep parsing
+                currentIndex = tagEndIndex + 1;
+                platformUtils::log("HtmlIterator", "Error: " + std::string(e.what()));
+                return;
+            }
+
+            //Closing tag end index
+            //+ 2 because of chars '/' and >;
+            size_t closingTagEndIndex = closingTagStartIndex + tag.length() + 2;
+
+            //TODO unit test
+            if (stringUtils::equals(tag, "script")) {
+                callback->onScript(info);
+                currentIndex = closingTagStartIndex + 1;
+                return;
+            } else {
+                info.setPairContent(
+                        tagEndIndex + 1,
+                        closingTagStartIndex
+                );
+
+                //Adding tag into stack after closing tag is found succesfully to manage consistency
+                //of the stack.
+                tagStack.push(info);
+
+                bool stepInto = callback->onPairTag(
+                        info,
+                        currentIndex,
+                        tagEndIndex,
+                        closingTagStartIndex,
+                        closingTagEndIndex
+                );
+
+                if (stepInto) {
+                    currentIndex = tagEndIndex + 1;
+                } else {
+                    currentIndex = closingTagStartIndex + 1;
+                }
+            }
+            return;
         }
+
 
         currentIndex = tagEndIndex + 1;
     }
@@ -428,7 +432,90 @@ private:
                     //currentSharedContent's last char is not white, so we can append new char
                     currentSharedContent += ch;
                 }
+            } else {
+                currentSharedContent += ch;
             }
+        }
+    }
+
+
+    /**
+     *
+     * @param tag Pair tag in which is currentSharedContent located
+     */
+    //TODO unit test on white chars and spaces handling
+    //TODO normalize texts based on tags, content can contains unnecesarry white chars at the beggining/end
+    void trySendContentText(
+            TagInfo tag
+    ) {
+        adjustSharedContentContextually();
+
+        if (currentSharedContent.empty()) {
+            //We don't have anything to be send, this check is here so it's not necessary to do
+            //check outside of trySendContentText
+            return;
+        }
+        if (isPreContext) {
+            callback->onContentText(currentSharedContent);
+            //using emplace instead of push to get copy of currentSharedContent string
+            textNodes.emplace(currentSharedContent);
+            currentSharedContent.clear();
+            return;
+        }
+
+
+        if (stringUtils::isOnlyWhiteChars(currentSharedContent)) {
+            //TODO comment
+            currentSharedContent.clear();
+            return;
+        }
+
+
+        if (tagStack.empty() && !isFullHtmlDocument) {
+            //When sequence is empty text can be send only if content is not full document
+            callback->onContentText(currentSharedContent);
+            textNodes.emplace(currentSharedContent);
+            currentSharedContent.clear();
+            return;
+        }
+
+        //Pushing first text into stack, no need to do check with last entry
+        callback->onContentText(currentSharedContent);
+        //using emplace instead of push to get copy of currentSharedContent string
+        textNodes.emplace(currentSharedContent);
+
+        currentSharedContent.clear();
+    }
+
+
+    /**
+     * TODO docs
+     * @since 1.0.0
+     */
+    void adjustSharedContentContextually() {
+        if (isPreContext) {
+            //No need adjustments inside <pre> tag, content should be passed as it is
+            return;
+        }
+
+        //All white chars can be included only inside <pre> tag, otherwise text must be normalized
+        htmlUtils::normalizeText(currentSharedContent);
+
+        if (textNodes.empty()) {
+            return;
+        }
+
+        std::string lastText = textNodes.top();
+
+        if (stringUtils::endsWith(lastText, ' ')) {
+            //We are outside of <pre> tag hear, currentSharedContent was normilized and can have
+            //only one space at the beggining
+            if (stringUtils::startsWith(currentSharedContent, ' ')) {
+                currentSharedContent.erase(0, 1);
+            }
+        } else {
+            //TODO move pop elsewhere
+            //textNodes.pop();
         }
     }
 
@@ -439,8 +526,7 @@ private:
      * when content is just some clipped html content (some <div> code or some formatted text).
      * @since 1.0.0
      */
-    //TODO when first non white char is not <  return false.
-    //TODO think about all the cases
+    //TODO think about all stupid cases like random text before <html tag
     [[nodiscard]] bool moveIndexToInitialPosition() {
         size_t firstI = stringUtils::nextNonWhiteChar(content, 0, contentLength);
         if (firstI == std::string::npos) {
@@ -497,7 +583,7 @@ private:
 
 
     /**
-     * Called from @moveIndexToNextTag when @i is pointing to < char and iterator needs to know if
+     * Called from @moveIndexToNextTag when index is pointing to < char and iterator needs to know if
      * string sequence after < is valid tag or not.
      * @param input Input string.
      * @param l Length of @input

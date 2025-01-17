@@ -21,6 +21,8 @@ private:
     bool isSingle;
     std::string tag;
     std::string body;
+    size_t pairContentStartIndex = 0;
+    size_t pairContentEndIndex = 0;
 
 public:
     TagInfo(
@@ -34,7 +36,7 @@ public:
         htmlUtils::getTagAttributes(this->body, this->attributes);
 
         if (this->isSingle) {
-            std::string classesString=attributes["class"];
+            std::string classesString = attributes["class"];
             if (!classesString.empty()) {
                 htmlUtils::extractClasses(classesString, this->clazz);
             }
@@ -54,6 +56,15 @@ public:
     };
 
     ~TagInfo() = default;
+
+
+    void setPairContent(
+            const size_t start,
+            const size_t end
+    ) {
+        this->pairContentStartIndex = start;
+        this->pairContentEndIndex = end;
+    }
 
 
     std::string getTag() {
@@ -78,6 +89,16 @@ public:
 
     std::vector<std::string> getClasses() {
         return this->clazz;
+    }
+
+
+    size_t getPairContentStartIndex() {
+        return pairContentStartIndex;
+    }
+
+
+    size_t getPairContentEndIndex() {
+        return pairContentEndIndex;
     }
 
 

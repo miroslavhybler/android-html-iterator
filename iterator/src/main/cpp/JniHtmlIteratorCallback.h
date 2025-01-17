@@ -138,6 +138,7 @@ public:
 
         jobject tagInfoKotlin = createKotlinTagInfo(tag);
         kotlinTagInfoStack.push(tagInfoKotlin);
+        //TODO maybe remove, not necessary for the library
         jint jOpeningTagStartIndex = static_cast<jint>(openingTagEndIndex);
         jint jOpeningTagEndIndex = static_cast<jint>(openingTagEndIndex);
         jint jClosingTagStartIndex = static_cast<jint>(closingTagStartIndex);
@@ -220,7 +221,6 @@ private:
         jmethodID constructor = environment->GetMethodID(
                 tagInfoClass,
                 "<init>",
-                // "(Ljava/lang/String;Ljava/lang/String;Z)V"
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/List;Z)V"
         );
         if (!constructor) {
