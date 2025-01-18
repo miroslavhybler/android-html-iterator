@@ -181,7 +181,6 @@ namespace htmlUtils {
     }
 
 
-
     /**
      * Extracts name of tag from tagBody. This doesnt means name attribute but tag itself,
      * e.g. <code>&lt;p&gt; -> p</code>
@@ -298,6 +297,10 @@ namespace htmlUtils {
     }
 
 
+    /**
+     * TODO docs
+     * @param text
+     */
     void normalizeText(
             std::string &text
     ) {
@@ -351,7 +354,7 @@ namespace htmlUtils {
      * @return True if tag from @tagBody is single tag, false when tag is pair tag.
      * @since 1.0.0
      */
-    bool isSingleTag(std::string &tagBody) {
+    bool isSingleTag(const std::string &tagBody) {
         size_t lastIndex = tagBody.length() - 1;
         bool hasClosing = tagBody.find('/', lastIndex) != std::string::npos;
         if (hasClosing) {
@@ -379,9 +382,11 @@ namespace htmlUtils {
      * @return
      * @since 1.0.0
      */
-    bool isTextStyleTag(std::string &tag) {
+    bool isInlineTag(const std::string &tag) {
         return textStyleTags.find(tag) != textStyleTags.end();
     }
+
+
 }
 
 #endif //ANDROID_HTML_ITERATOR_HTMLUTILS_H

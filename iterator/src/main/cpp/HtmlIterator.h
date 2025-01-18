@@ -51,6 +51,9 @@ private:
     std::stack<TagInfo> tagStack;
 
 
+    std::stack<TagInfo> tagSequence;
+
+
     /**
      * TODO docs
      * @since 1.0.0
@@ -155,6 +158,9 @@ public:
 
         while (!this->tagStack.empty()) {
             this->tagStack.pop();
+        }
+        while (!this->tagSequence.empty()) {
+            this->tagSequence.pop();
         }
 
         while (!this->textNodes.empty()) {
@@ -375,6 +381,7 @@ private:
                 //Adding tag into stack after closing tag is found succesfully to manage consistency
                 //of the stack.
                 tagStack.push(info);
+                tagSequence.push(info);
 
                 bool stepInto = callback->onPairTag(
                         info,
@@ -444,33 +451,21 @@ private:
      * @param tag Pair tag in which is currentSharedContent located
      */
     //TODO unit test on white chars and spaces handling
-    //TODO normalize texts based on tags, content can contains unnecesarry white chars at the beggining/end
     void trySendContentText(
-            TagInfo tag
+            TagInfo &tag
     ) {
-        adjustSharedContentContextually();
+        bool canBeSend = adjustSharedContentContextually(tag);
 
-        if (currentSharedContent.empty()) {
-            //We don't have anything to be send, this check is here so it's not necessary to do
-            //check outside of trySendContentText
-            return;
-        }
-        if (isPreContext) {
+        if (canBeSend) {
             callback->onContentText(currentSharedContent);
             //using emplace instead of push to get copy of currentSharedContent string
             textNodes.emplace(currentSharedContent);
-            currentSharedContent.clear();
-            return;
         }
+        currentSharedContent.clear();
 
 
-        if (stringUtils::isOnlyWhiteChars(currentSharedContent)) {
-            //TODO comment
-            currentSharedContent.clear();
-            return;
-        }
-
-
+        //TODO move this functionality inside adjustSharedContentContextually if needed
+        /*
         if (tagStack.empty() && !isFullHtmlDocument) {
             //When sequence is empty text can be send only if content is not full document
             callback->onContentText(currentSharedContent);
@@ -485,38 +480,73 @@ private:
         textNodes.emplace(currentSharedContent);
 
         currentSharedContent.clear();
+         */
     }
 
 
     /**
      * TODO docs
      * @since 1.0.0
+     * @return True when currentSharedContent can be sent to callback, false otherwise.
      */
-    void adjustSharedContentContextually() {
+    bool adjustSharedContentContextually(TagInfo &tag) {
+        if (currentSharedContent.empty()) {
+            //Nothing to adjust when currentSharedContent is empty
+            //We don't have anything to adjust and to be send, this check is here so it's not
+            // necessary to do check outside.
+            return false;
+        }
+
         if (isPreContext) {
             //No need adjustments inside <pre> tag, content should be passed as it is
-            return;
+            return true;
         }
 
         //All white chars can be included only inside <pre> tag, otherwise text must be normalized
         htmlUtils::normalizeText(currentSharedContent);
 
-        if (textNodes.empty()) {
-            return;
+
+        if (tagSequence.empty() || textNodes.empty()) {
+            //No tag was found before, we don't know how to adjust content so we need to trim it.
+            stringUtils::trim(currentSharedContent);
+
+            if (currentSharedContent.empty()) {
+                return false;
+            }
+            return true;
         }
 
-        std::string lastText = textNodes.top();
 
-        if (stringUtils::endsWith(lastText, ' ')) {
-            //We are outside of <pre> tag hear, currentSharedContent was normilized and can have
-            //only one space at the beggining
+        //TODO ensure tags are on the same level
+        TagInfo previousTag = tagSequence.top();
+
+        bool isLastTagInline = htmlUtils::isInlineTag(previousTag.getTag());
+        bool isTagInline = htmlUtils::isInlineTag(tag.getTag());
+
+        std::string previousText = textNodes.top();
+
+        if (!isTagInline
+        || !isLastTagInline
+        || stringUtils::endsWith(previousText, ' ')
+        ) {
             if (stringUtils::startsWith(currentSharedContent, ' ')) {
+                //We are outside of <pre> and tag is not inline, currentSharedContent was normalized
+                // and can have only one space at the beginning
                 currentSharedContent.erase(0, 1);
             }
-        } else {
-            //TODO move pop elsewhere
-            //textNodes.pop();
+
+            if (currentSharedContent.empty()) {
+                return false;
+            }
         }
+
+        if (isLastTagInline && isTagInline) {
+            //Both tags are inline tags, we can keep the space between them
+            return true;
+        }
+
+
+        return true;
     }
 
 

@@ -67,37 +67,37 @@ public:
     }
 
 
-    std::string getTag() {
+    [[nodiscard]] std::string getTag() const {
         return this->tag;
     }
 
 
-    std::string getBody() {
+    [[nodiscard]] std::string getBody() const {
         return this->body;
     }
 
 
-    std::string getAttribute(std::string &name) {
+    [[nodiscard]] std::string getAttribute(const std::string &name) {
         return this->attributes[name];
     }
 
 
-    std::map<std::string, std::string> getOutMap() {
+    [[nodiscard]] std::map<std::string, std::string> getOutMap() const {
         return this->attributes;
     }
 
 
-    std::vector<std::string> getClasses() {
+    [[nodiscard]] std::vector<std::string> getClasses() const {
         return this->clazz;
     }
 
 
-    size_t getPairContentStartIndex() {
+    [[nodiscard]] size_t getPairContentStartIndex() const {
         return pairContentStartIndex;
     }
 
 
-    size_t getPairContentEndIndex() {
+    [[nodiscard]] size_t getPairContentEndIndex() const {
         return pairContentEndIndex;
     }
 
