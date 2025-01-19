@@ -29,33 +29,39 @@ class HtmlIterator {
 private:
 
     /**
-     * Holding current html content text. Is set by @setContent. Can be whole html document content
-     * most likely wrapped in <html> tag or can be a clip of html styled content to be processed.
+     * Holding current html content text. Is set by <code>setContent</code>. Can be whole html
+     * document content most likely wrapped in <html> tag or can be a clip of html styled content
+     * to be processed.
      * @since 1.0.0
      */
     std::string content;
 
 
     /**
-     * Holding current html content length. Is set by @setContent.
+     * Holding current html content length. Is set by <code>setContent</code>.
      * @since 1.0.0
      */
     size_t contentLength = 0;
 
 
     /**
-     * Holding kotlinTagInfoStack of html <b>pair</b> tags as they are iterated. Tags are pushed when iterator detects
+     * Holding TagInfo of <b>pair</b> tags as they are iterated. Tags are pushed when iterator detects
      * and enters pair tag and are popped out when iterator moves next behind the closing tag.
      * @since 1.0.0
      */
     std::stack<TagInfo> tagStack;
 
 
+    /**
+     * Holding TagInfo of <b>pair</b> tags as they are iterated. Unlike tagStack, tags are not popped
+     * out when iterator leaves pair tag.
+     * @since 1.0.0
+     */
     std::stack<TagInfo> tagSequence;
 
 
     /**
-     * TODO docs
+     * Holds list of text content queried throught the process normalized based on context.
      * @since 1.0.0
      */
     std::stack<std::string> textNodes;
@@ -77,9 +83,10 @@ private:
 
 
     /**
+     * Holds text that have been queried between tags before it's pushed into [textNodes] stack.
      * @since 1.0.0
      */
-    std::string currentSharedContent;
+    std::string currentTextNode;
 
 
     /**
@@ -91,16 +98,17 @@ private:
 
 
     /**
-     * True when iterator has gone through <head> tag of html content. This is for performance reason
-     * because with boolean flag iterator doesn't have to compare current tag with <head> tag.
+     * Helper flag, true when iterator has gone through <head> tag of html content. This is for
+     * performance reason because with boolean flag iterator doesn't have to compare current
+     * tag with <head> tag.
      * @since 1.0.0
      */
     bool isHeadIterated = false;
 
 
     /**
-     * True when @content is full html document content wrapped in <html> tag. False when content is
-     * just clip of content, e.g. short styled html text.
+     * Helper flag, true when content is full html document content wrapped in <html> tag.
+     * False when content is just clip of content, e.g. short styled html text or just plain text.
      * @since 1.0.0
      */
     bool isFullHtmlDocument = false;
@@ -115,6 +123,7 @@ private:
 
 public:
     HtmlIterator() = default;
+
 
     ~HtmlIterator() {
         clear();
@@ -152,7 +161,7 @@ public:
      */
     void clear() {
         this->content.clear();
-        this->currentSharedContent.clear();
+        this->currentTextNode.clear();
         this->contentLength = 0;
         this->contentLength = 0;
 
@@ -289,7 +298,7 @@ private:
 
         if (isFullHtmlDocument && !isHeadIterated) {
             //Skipping head tag
-            //TODO maybe remove skpping head tag
+            //TODO maybe remove skipping head tag
             if (stringUtils::equals(tag, "head")) {
                 isHeadIterated = true;
                 //index of < of closing tag
@@ -320,8 +329,6 @@ private:
             TagInfo lastTag = tagStack.top();
             callback->onLeavingPairTag(lastTag);
 
-            //TODO additional check for closing tag if text should be visible (somehow??)
-            //TODO definitely use tag (because pre)
             trySendContentText(lastTag);
 
             if (stringUtils::equals(tag, "/pre")) {
@@ -423,24 +430,24 @@ private:
         if (isPreContext) {
             //Iterator is inside of <pre> tag somewhere, so every char (including all white chars)
             //has to be appended.
-            currentSharedContent += ch;
+            currentTextNode += ch;
             return;
         }
 
         bool isCharWhite = stringUtils::isWhiteChar(ch);
         if (!isCharWhite) {
-            currentSharedContent += ch;
+            currentTextNode += ch;
         } else {
-            if (!currentSharedContent.empty()) {
+            if (!currentTextNode.empty()) {
                 //We are outside of <pre> tag, always one white char is enabled to be visible between
                 //other charters.
-                size_t lastIndex = currentSharedContent.size() - 1;
-                if (currentSharedContent[lastIndex] != ' ' && ch == ' ') {
-                    //currentSharedContent's last char is not white, so we can append new char
-                    currentSharedContent += ch;
+                size_t lastIndex = currentTextNode.size() - 1;
+                if (currentTextNode[lastIndex] != ' ' && ch == ' ') {
+                    //currentTextNode's last char is not white, so we can append new char
+                    currentTextNode += ch;
                 }
             } else {
-                currentSharedContent += ch;
+                currentTextNode += ch;
             }
         }
     }
@@ -448,7 +455,7 @@ private:
 
     /**
      *
-     * @param tag Pair tag in which is currentSharedContent located
+     * @param tag Pair tag in which is currentTextNode located
      */
     //TODO unit test on white chars and spaces handling
     void trySendContentText(
@@ -457,41 +464,72 @@ private:
         bool canBeSend = adjustSharedContentContextually(tag);
 
         if (canBeSend) {
-            callback->onContentText(currentSharedContent);
-            //using emplace instead of push to get copy of currentSharedContent string
-            textNodes.emplace(currentSharedContent);
+            callback->onContentText(currentTextNode);
+            //using emplace instead of push to get copy of currentTextNode string
+            textNodes.emplace(currentTextNode);
         }
-        currentSharedContent.clear();
+        currentTextNode.clear();
 
 
         //TODO move this functionality inside adjustSharedContentContextually if needed
         /*
         if (tagStack.empty() && !isFullHtmlDocument) {
             //When sequence is empty text can be send only if content is not full document
-            callback->onContentText(currentSharedContent);
-            textNodes.emplace(currentSharedContent);
-            currentSharedContent.clear();
+            callback->onContentText(currentTextNode);
+            textNodes.emplace(currentTextNode);
+            currentTextNode.clear();
             return;
         }
 
         //Pushing first text into stack, no need to do check with last entry
-        callback->onContentText(currentSharedContent);
-        //using emplace instead of push to get copy of currentSharedContent string
-        textNodes.emplace(currentSharedContent);
+        callback->onContentText(currentTextNode);
+        //using emplace instead of push to get copy of currentTextNode string
+        textNodes.emplace(currentTextNode);
 
-        currentSharedContent.clear();
+        currentTextNode.clear();
          */
     }
 
 
     /**
-     * TODO docs
+     * Adjusts <code>currentTextNode</code> content based on context, uses previous and current tag
+     * to normalize white spaces in queried text.
+     * <hr/>
+     * <hr/>
+     * <h3>Cases</h3>
+     * <br/>
+     * <h4><code>currentTextNode</code> is empty</h4>
+     * <code>false</code> is returned as there is nothing to adjust or send to the <code>callback</code>.
+     * <hr/>
+     * <br/>
+     * <h4>Inside <code>&lt;pre&gt;</code> tag</h4>
+     * If <code>currentTextNode</code> is somewhere within <code>&lt;pre&gt;</code> tag context, no
+     * adjustment is made as pre tag should preserve white spaces of the content. If there is no pre
+     * context, <code>currentTextNode</code> is then normalized.
+     * <hr/>
+     * <br/>
+     * <h4>Between container tags</h4>
+     * After normalization <code>currentTextNode</code> needs to be adjusted based on context of
+     * contain and surrounding tags. If <code>currentTextNode</code> is inside container tag or in
+     * between container tags and starts with space (' '), the space must be erased.
+     * Returning <code>false</code> only when <code>currentTextNode</code> is empty after adjustment.
+     * <hr/>
+     * <br/>
+     * <h4>Between inline tags</h4>
+     * After normalization <code>currentTextNode</code> needs to be adjusted based on context of
+     * contain and surrounding tags. When <code>currentTextNode</code> is between inline tags and
+     * starts with space (' ') its checked that if last text node also ends with space. If so,
+     * space is erased, otherwise it can be kept in <code>currentTextNode</code>.
+     * Returning <code>false</code> only when <code>currentTextNode</code> is empty after adjustment.
+     *
+     * <hr/>
+     * <hr/>
      * @since 1.0.0
-     * @return True when currentSharedContent can be sent to callback, false otherwise.
+     * @return True when currentTextNode is valid non empty and can be sent to callback, false otherwise.
      */
     bool adjustSharedContentContextually(TagInfo &tag) {
-        if (currentSharedContent.empty()) {
-            //Nothing to adjust when currentSharedContent is empty
+        if (currentTextNode.empty()) {
+            //Nothing to adjust when currentTextNode is empty
             //We don't have anything to adjust and to be send, this check is here so it's not
             // necessary to do check outside.
             return false;
@@ -503,49 +541,47 @@ private:
         }
 
         //All white chars can be included only inside <pre> tag, otherwise text must be normalized
-        htmlUtils::normalizeText(currentSharedContent);
+        htmlUtils::normalizeText(currentTextNode);
 
 
         if (tagSequence.empty() || textNodes.empty()) {
-            //No tag was found before, we don't know how to adjust content so we need to trim it.
-            stringUtils::trim(currentSharedContent);
+            //No tag was found before, also any text, we don't know how to adjust content so we
+            //just apply trim.
+            stringUtils::trim(currentTextNode);
 
-            if (currentSharedContent.empty()) {
+            if (currentTextNode.empty()) {
                 return false;
             }
             return true;
         }
 
 
-        //TODO ensure tags are on the same level
         TagInfo previousTag = tagSequence.top();
-
         bool isLastTagInline = htmlUtils::isInlineTag(previousTag.getTag());
         bool isTagInline = htmlUtils::isInlineTag(tag.getTag());
 
         std::string previousText = textNodes.top();
 
-        if (!isTagInline
-        || !isLastTagInline
-        || stringUtils::endsWith(previousText, ' ')
-        ) {
-            if (stringUtils::startsWith(currentSharedContent, ' ')) {
-                //We are outside of <pre> and tag is not inline, currentSharedContent was normalized
+        if (!isTagInline || !isLastTagInline || stringUtils::endsWith(previousText, ' ')) {
+            if (stringUtils::startsWith(currentTextNode, ' ')) {
+                //We are outside of <pre> and tag is not inline, currentTextNode was normalized
                 // and can have only one space at the beginning
-                currentSharedContent.erase(0, 1);
+                currentTextNode.erase(0, 1);
             }
 
-            if (currentSharedContent.empty()) {
+            if (currentTextNode.empty()) {
+                //Last tetNode ending with space (' '),  currentTextNode is empty, nothing to send.
                 return false;
             }
         }
 
         if (isLastTagInline && isTagInline) {
-            //Both tags are inline tags, we can keep the space between them
+            //In this case text is normalized, and adjusted, if both tags are inline tags,
+            //currentTextNode can be send.
             return true;
         }
 
-
+        //currentTextNode has passed, can be send.
         return true;
     }
 
@@ -613,10 +649,10 @@ private:
 
 
     /**
-     * Called from @moveIndexToNextTag when index is pointing to < char and iterator needs to know if
+     * Called from <code>moveIndexToNextTag</code> when index is pointing to < char and iterator needs to know if
      * string sequence after < is valid tag or not.
      * @param input Input string.
-     * @param l Length of @input
+     * @param l Length of <code>input</code>
      * @param s Start index of incoming sequence, should always point at '<' character.
      * @param outIndex Index where end of the sequence will be written.
      * @return True if string being '<' ic actual tag, false otherwise.
